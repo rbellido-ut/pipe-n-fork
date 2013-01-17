@@ -3,8 +3,8 @@ main():
 
     create output pipe
     create translate pipe
-    fork output
-    fork translate
+    fork output()
+    fork translate()
     execute input() as parent
 
 input():
@@ -35,5 +35,7 @@ translate():
     if input is 'X'
         delete one character back ##
     if input is 'a'
-        write 'z' to output pipe
+        write 'z' to buffer
+    if input is 'E'
+        write buffer to output pipe
 ```

@@ -2,12 +2,17 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <errno.h>
+#include <string.h>
 
+// Main function //
 void input(int outfd[2], int transfd[2]);
 void output(int outfd[2]);
-void translate();
+void translate(int outfd[2], int transfd[2]);
 void fatal(char *);
+
+// Utility functions //
+void killline(char *line);
+void backspace(char *line);
 
 int main(void)
 {
@@ -22,7 +27,7 @@ int main(void)
 
     if ((transpid = fork()) == 0) //translate code (child)
     {
-        translate(translatefd);
+        //translate(outputfd, translatefd);
     }
     else if ((outpid = fork()) == 0) //output code (child)
     {
@@ -38,37 +43,69 @@ int main(void)
     return 0;
 }
 
-void translate(int transfd[2])
+/*void translate(int outfd[2], int transfd[2])
 {
-    close(transfd[1]);
-}
+    size_t i = 0;
+    int in = 0;
+    int *buf = 0, **p;
+
+    close(transfd[1]); //close the write descriptor on translate pipe
+    close(outfd[0]); //close read descriptor on output pipe
+
+    while (1)
+    {
+        read(transfd[0], &in, 1);
+
+        switch (in)
+        {
+            case 'a':
+                in = 'z';
+                strncat(buf, (char*) in, 1);
+                break;
+
+            case 'E':
+                for (p = buf[0]; *p != '\0';p++)
+                {
+                    if (write(outfd[1], (int*) buf[i], 1))
+                        fatal("error writing buf to output pipe");
+                }
+
+                break;
+            default:
+                strncat(buf, (char*) &in, 1);
+                break;
+        }
+    }
+}*/
 
 void input(int outfd[2], int transfd[2])
 {
-    int in;
+    char in = 0;
 
     close(outfd[0]);
     close(transfd[0]);
 
     while (1)
     {
-        if ((in = fgetc(stdin)) == EOF)
-            fatal("error in fgetc");
+        if (fscanf(stdin, "%c", &in) == EOF)
+            fatal("error in fscanf\n");
 
         switch (in)
         {
             case 'T':
-                fprintf(stdout, "terminate");
                 break;
 
-            //case ctrl-k
+            case 11: //ctrl-k
+                break;
 
             case 'E':
+                if (write(transfd[1], (char*) &in, 1) == 0)
+                    fatal("error writing to translate pipe\n");
                 break;
 
             default: //write to output pipe
-                if (write(outfd[1], (int*) &in, sizeof(int)) == 0)
-                    fatal("error writing to output pipe");
+                if (write(outfd[1], (char*) &in, 1) == 0)
+                    fatal("error writing to output pipe\n");
                 break;
         }
     }
@@ -76,7 +113,7 @@ void input(int outfd[2], int transfd[2])
 
 void output(int outfd[2])
 {
-    int out;
+    char out = 0;
 
     close(outfd[1]);
 
