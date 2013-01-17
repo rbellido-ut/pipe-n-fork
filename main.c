@@ -22,10 +22,10 @@ int main(void)
 
     if ((transpid = fork()) == 0) //translate code (child)
     {
+        translate(translatefd);
     }
     else if ((outpid = fork()) == 0) //output code (child)
     {
-        fprintf(stdout, "output fork");
         output(outputfd);
     }
     else //input code (parent)
@@ -33,7 +33,14 @@ int main(void)
         input(outputfd, translatefd);
     }
 
+    //TODO: re-enable UNIX commands before exiting
+
     return 0;
+}
+
+void translate(int transfd[2])
+{
+    close(transfd[1]);
 }
 
 void input(int outfd[2], int transfd[2])
@@ -48,8 +55,22 @@ void input(int outfd[2], int transfd[2])
         if ((in = fgetc(stdin)) == EOF)
             fatal("error in fgetc");
 
-        if (write(outfd[1], (int*) &in, sizeof(int)) == 0)
-            fatal("error writing to output pipe");
+        switch (in)
+        {
+            case 'T':
+                fprintf(stdout, "terminate");
+                break;
+
+            //case ctrl-k
+
+            case 'E':
+                break;
+
+            default: //write to output pipe
+                if (write(outfd[1], (int*) &in, sizeof(int)) == 0)
+                    fatal("error writing to output pipe");
+                break;
+        }
     }
 }
 
@@ -61,7 +82,7 @@ void output(int outfd[2])
 
     while (1)
     {
-        read(outfd[0], out, 1);
+        read(outfd[0], &out, 1);
         fputc(out, stdout);
     }
 }
