@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <string.h>
+#include <fcntl.h>
 
 // Main function //
 void input(int outfd[2], int transfd[2]);
@@ -13,32 +14,36 @@ void fatal(char *);
 // Utility functions //
 void killline(char *line);
 void backspace(char *line);
+void terminate();
 
 int main(void)
 {
-    //TODO: Disable UNIX commands
-    pid_t transpid, outpid;
-    int translatefd[2], outputfd[2];
+    system("stty raw igncr -echo");
 
-    if (pipe(translatefd) < 0)
+    pid_t transpid, outpid;
+    int in_translatefd[2], outputfd[2], translate_outfd[2];
+
+    if (pipe(in_translatefd) < 0)
         fatal("error in creating pipe");
+
     if (pipe(outputfd) < 0)
         fatal("error in creating pipe");
 
-    if ((transpid = fork()) == 0) //translate code (child)
+    /*if ((transpid = fork()) == 0) //translate code (child)
     {
-        //translate(outputfd, translatefd);
-    }
-    else if ((outpid = fork()) == 0) //output code (child)
+        translate(outputfd, in_translatefd);
+    }*/
+    if ((outpid = fork()) == 0) //output code (child)
     {
         output(outputfd);
     }
     else //input code (parent)
     {
-        input(outputfd, translatefd);
+        input(outputfd, in_translatefd);
     }
 
-    //TODO: re-enable UNIX commands before exiting
+    fprintf(stdout, "exiting...");
+    system("stty -raw -igncr echo");
 
     return 0;
 }
@@ -82,46 +87,37 @@ void input(int outfd[2], int transfd[2])
 {
     char in = 0;
 
-    close(outfd[0]);
+    close(outfd[0]); //close read pipe
     close(transfd[0]);
 
     while (1)
     {
-        if (fscanf(stdin, "%c", &in) == EOF)
-            fatal("error in fscanf\n");
+        if ((in = getchar()) == 11)
+            break;
 
-        switch (in)
-        {
-            case 'T':
-                break;
+        if (write(outfd[1], (int*) &in, 1) == 0)
+            fatal("error writing to output pipe\n");
 
-            case 11: //ctrl-k
-                break;
-
-            case 'E':
-                if (write(transfd[1], (char*) &in, 1) == 0)
-                    fatal("error writing to translate pipe\n");
-                break;
-
-            default: //write to output pipe
-                if (write(outfd[1], (char*) &in, 1) == 0)
-                    fatal("error writing to output pipe\n");
-                break;
-        }
+        //TODO: write to translate pipe
     }
 }
 
 void output(int outfd[2])
 {
-    char out = 0;
-
-    close(outfd[1]);
+    int out = 0, nread = 1;
 
     while (1)
     {
-        read(outfd[0], &out, 1);
-        fputc(out, stdout);
+        if (read(outfd[0], &out, nread) != nread)
+            fatal("read from output pipe failed");
+
+        if (out == 11) //ctrl-k
+            break;
+
+        fputc(out,stdout);
+        fflush(stdout);
     }
+
 }
 
 void fatal(char *err_msg)
