@@ -1,6 +1,6 @@
-COMPILER = gcc
+COMPILER = g++
 EXECUTABLE = pipe-n-fork
-SOURCE = main.c
+SOURCE = pipe-fork.cpp
 FLAGS = -W -Wall
 
 compile:
