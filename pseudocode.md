@@ -23,23 +23,26 @@ input(outputpipe, translatepipe):
             write to outputpipe
 
 output(pipe):
+    start thread for reading pipe from translate
+
     while (1):
         read from pipe one character at a time
         output the character to stdout
 
 translate(pipe):
+    initialize translatedline
+
     while(1):
         read from pipe one character at a time
-
-
-translateline(line):
-    for each character in line:
-        if character is 'K'
-            return empty translated line
-        if character is 'X'
-            don't add character to translated line
-        if character is 'a'
-            replace character by 'z' in translated line
-
-    return translated line
+        if character is 'K':
+            clear translatedline
+        else if character is 'X':
+            erase one character at end of translatedline
+        else if character is 'a':
+            append 'z' to translatedline
+        else if character is 'E':
+            send translatedline to translate_output pipe
+            clear translatedline
+        else
+            append character to translatedline
 ```

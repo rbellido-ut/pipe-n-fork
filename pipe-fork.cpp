@@ -4,17 +4,19 @@
 #include <sys/types.h>
 #include <string>
 #include <fcntl.h>
-
+#include <pthread.h>
+#include <signal.h>
+#include <stdio.h>
 
 // Main functions //
 void input(int outfd[2], int in_transfd[2]);
-void output(int outfd[2]);
-void translate(int trans_outfd[2], int in_transfd[2]);
+void output(int outfd[2], int trans_outfd[2]);
+void translate(int in_transfd[2], int trans_outfd[2]);
 
 // Utility functions //
-void terminate();
+void terminate(pid_t tpid, pid_t outpid);
 void fatal(std::string err_msg);
-std::string translateline(std::string line);
+void* readfromtranslate(void *translatepipe);
 
 using namespace std;
 
@@ -36,26 +38,27 @@ int main(void)
 
     if ((transpid = fork()) == 0) //translate code (child)
     {
-        translate(translate_outfd, in_translatefd);
+        translate(in_translatefd, translate_outfd);
     }
     else if ((outpid = fork()) == 0) //output code (child)
     {
-        output(outputfd);
+        output(outputfd, translate_outfd);
     }
     else //input code (parent)
     {
         input(outputfd, in_translatefd);
+
+        terminate(transpid, outpid); //won't reach this until input() returns
     }
 
-    cout << "exiting...";
     system("stty -raw -igncr echo");
 
     return 0;
 }
 
-void translate(int trans_outfd[2], int in_transfd[2])
+void translate(int in_transfd[2], int trans_outfd[2])
 {
-    string buff, transline;
+    string translatedline = "\r\n";
     char recvdchar;
 
     while (1)
@@ -63,87 +66,115 @@ void translate(int trans_outfd[2], int in_transfd[2])
         if (read(in_transfd[0], (char *) &recvdchar, 1) == 0)
             fatal("read() failed in translate()\n");
 
-        buff += recvdchar;
-
-        transline = translateline(buff);
-
-        if (write(trans_outfd[1], (char *) transline.c_str(), transline.size()) == 0)
-            fatal("write() failed in translate()\n");
-    }
-
-}
-
-std::string translateline(string line)
-{
-    string translatedline;
-    string::size_type i = 0;
-
-    for (i = 0; i < line.size(); ++i)
-    {
-        switch (line[i])
+        switch (recvdchar)
         {
             case 'K':
-                return "\n";
+                translatedline.clear();
+                translatedline = "\r\n";
+                break;
 
             case 'X':
+                translatedline.erase(translatedline.end() - 1);
                 break;
 
             case 'a':
-                translatedline[i] = 'z';
+                translatedline += 'z';
+                break;
+
+            case 'E': //end of characters, send translated line to output()
+                translatedline += "\r\n";
+
+                if (write(trans_outfd[1], (char *) translatedline.c_str(), translatedline.size()) == 0)
+                    fatal("write() failed in translate()\n");
+
+                translatedline = "\r\n";
                 break;
 
             default:
-                translatedline[i] = line[i];
+                translatedline += recvdchar;
                 break;
         }
     }
-
-    return translatedline;
 }
 
 void input(int outfd[2], int in_transfd[2])
 {
     char in;
-    string buffer;
-
-    close(outfd[0]); //close read pipe
-    close(in_transfd[0]);
+    string buffer = "";
 
     while (1)
     {
-        cin >> in;
+        in = getchar();
 
+        buffer += in;
 
         if (in == 'E')
         {
-            cout << buffer << endl;
             if (write(in_transfd[1], (char *) buffer.c_str(), buffer.size()) == 0)
                 fatal("error in input(). write() failed\n");
 
             buffer = "";
         }
+        else if (in == 'T')
+        {
+            break;
+        }
+        else if (in == 11) //terminate abnormally
+        {
+            break;
+        }
         else
         {
-            buffer += in;
-
             if (write(outfd[1], (char *) &in, 1) == 0)
                 fatal("error in input(). write() failed\n");
         }
     }
 }
 
-void output(int outfd[2])
+void output(int outfd[2], int trans_outfd[2])
 {
     char inout;
+    pthread_t translate_outthread;
+
+    pthread_create(&translate_outthread,
+            NULL,
+            readfromtranslate,
+            (void*) trans_outfd[0]);
 
     while (1)
     {
-        if (read(outfd[0], &inout, 1) != 1)
+        if (read(outfd[0], &inout, 1) == 0)
             fatal("read from output pipe failed\n");
 
         cout << inout;
         cout.flush();
     }
+}
+
+void* readfromtranslate(void *translatepipe)
+{
+   char transout;
+
+   while (1)
+   {
+       if (read((int) translatepipe, &transout, 1) == 0)
+           fatal("read() from readfromtranslate() failed\n");
+
+       cout << transout;
+       cout.flush();
+   }
+
+   return NULL;
+}
+
+
+void terminate(pid_t transpid, pid_t outpid)
+{
+    if (kill(transpid, 9) == -1)
+        fatal("error killing translate process");
+
+    if (kill(outpid, 9) == -1)
+        fatal("error killing output process");
 }
 
 void fatal(string err_msg)
