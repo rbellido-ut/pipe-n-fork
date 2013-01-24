@@ -50,7 +50,7 @@ void* readfromtranslate(void *translatepipe)
 
    while (1)
    {
-       if (read((int) translatepipe, &transout, sizeof(char)) == 0)
+       if (read((int) translatepipe, &transout, 1) == 0)
            fatal("read() from readfromtranslate() failed\r\n");
 
        cout << transout;

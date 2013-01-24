@@ -225,7 +225,7 @@ int input(int outfd[2], int in_transfd[2])
         }
         else if (in == 'T')
         {
-            if (write(outfd[1], (char*) &in, sizeof(char)) == 0)
+            if (write(outfd[1], (char*) &in, 1) == 0)
                 fatal("error in input(). write() failed\r\n");
 
             //send buffered message to be translated
