@@ -1,14 +1,22 @@
 COMPILER = g++
 EXECUTABLE = pipe-n-fork
-SOURCE = pipe-fork.cpp
+MAINSOURCE = pipe-fork.cpp
+UTILSOURCE = pipe-fork-utils.cpp
 FLAGS = -W -Wall
 LIBRARIES = -lpthread
+OBJECTS = pipe-fork-utils.o pipe-fork.o
 
-pipe-fork:
-	$(COMPILER) $(FLAGS) -o $(EXECUTABLE) $(SOURCE) $(LIBRARIES)
+pipe-fork: $(OBJECTS)
+	$(COMPILER) $(FLAGS) -o $(EXECUTABLE) $(OBJECTS) $(LIBRARIES)
 
 run:
 	./$(EXECUTABLE)
 
 clean:
-	rm $(EXECUTABLE)
+	rm -f $(EXECUTABLE) *.o
+
+pipe-fork-utils.o:
+	$(COMPILER) -c $(UTILSOURCE)
+
+pipe-fork.o:
+	$(COMPILER) -c $(MAINSOURCE)
