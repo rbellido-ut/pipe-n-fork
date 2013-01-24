@@ -4,13 +4,11 @@ SOURCE = pipe-fork.cpp
 FLAGS = -W -Wall
 LIBRARIES = -lpthread
 
-compile:
+pipe-fork:
 	$(COMPILER) $(FLAGS) -o $(EXECUTABLE) $(SOURCE) $(LIBRARIES)
-
-default: compile run
 
 run:
 	./$(EXECUTABLE)
 
 clean:
-	rm pipe-n-fork
+	rm $(EXECUTABLE)
