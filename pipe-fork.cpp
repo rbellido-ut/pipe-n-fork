@@ -1,22 +1,6 @@
 #include <iostream>
 #include <unistd.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <string>
-#include <pthread.h>
-#include <stdio.h>
-
-// Main functions //
-void input(int outfd[2], int in_transfd[2]);
-void output(int outfd[2], int trans_outfd[2]);
-void translate(int in_transfd[2], int trans_outfd[2]);
-
-// Utility functions //
-void terminate(pid_t childpid);
-void fatal(std::string err_msg);
-void* readfromtranslate(void *translatepipe);
-void term_sig_handler();
+#include "pipe-fork.h"
 
 using namespace std;
 
@@ -39,16 +23,15 @@ int main(void)
     if ((transpid = fork()) == 0) //translate code (child)
     {
         translate(in_translatefd, translate_outfd);
-        terminate(transpid);
     }
     else if ((outpid = fork()) == 0) //output code (child)
     {
         output(outputfd, translate_outfd);
-        terminate(outpid);
     }
     else //input code (parent)
     {
         input(outputfd, in_translatefd);
+        wait((int*) 0);
     }
 
     system("stty -raw -igncr echo");
@@ -85,6 +68,8 @@ void translate(int in_transfd[2], int trans_outfd[2])
 
             case 'T': //end of characters, send translated line to output()
                 translatedline += "\r\n";
+
+                signal(SIGTERM, term_sig_handler);
 
                 if (write(trans_outfd[1], (char *) translatedline.c_str(), translatedline.size()) == 0)
                     fatal("write() failed in translate()\r\n");
@@ -123,15 +108,9 @@ void input(int outfd[2], int in_transfd[2])
         }
         else if (in == 'T')
         {
-            /*if (write(outfd[1], (char*) &in, 1) == 0)
-                fatal("error in input(). write() failed\n");*/
-
+            //send buffered message to be translated
             if (write(in_transfd[1], (char*) buffer.c_str(), buffer.size()) == 0)
                 fatal("error in input(). write() failed\r\n");
-
-            wait((int*) 0);
-            wait((int*) 0);
-
             break;
         }
         else if (in == 11) //terminate abnormally
@@ -167,7 +146,6 @@ void output(int outfd[2], int trans_outfd[2])
 
         if (inout == 'T')
         {
-            //cout << "scanned T...output" << endl;
             cout.flush();
             break;
         }
@@ -181,7 +159,7 @@ void* readfromtranslate(void *translatepipe)
 
    while (1)
    {
-       if (read((int) translatepipe, &transout, 1) == 0)
+       if (read((int) translatepipe, &transout, sizeof(char)) == 0)
            fatal("read() from readfromtranslate() failed\r\n");
 
        cout << transout;
@@ -189,7 +167,6 @@ void* readfromtranslate(void *translatepipe)
 
        if (transout == 'T')
        {
-           //cout << "scanned T...readfromtranslate" << endl;
            cout.flush();
            break;
        }
@@ -210,4 +187,9 @@ void fatal(string err_msg)
     cerr << err_msg;
     system("stty -raw -igncr echo");
     exit(1);
+}
+
+static void term_sig_handler(int signo)
+{
+    fprintf(stdout, "%d", signo); //this doesn't actually get displayed..I don't even understand
 }
