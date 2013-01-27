@@ -1,2 +1,5 @@
+# no mercurial files
 .hg
+
+# no object files
 .o
